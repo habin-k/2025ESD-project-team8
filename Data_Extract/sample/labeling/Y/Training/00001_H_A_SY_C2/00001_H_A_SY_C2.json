@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "description": "낙상사고 위험동작 이미지 데이터",
+    "scene_id": "00001_H_A_SY_C2",
+    "scene_format": "MP4",
+    "scene_res": "3840 X 2160",
+    "creator": "순천향대학교 산학협력단",
+    "distributor": "NIA",
+    "date": "2023-09-05"
+  },
+  "scene_info": {
+    "scene_loc": "병원",
+    "scene_pos": "병실",
+    "scene_method": "none",
+    "scene_IsFall": "낙상",
+    "scene_cat_name": "측면낙상",
+    "fall_type": "중심을 잃고 넘어짐",
+    "scene_length": 600,
+    "cam_num": 2
+  },
+  "actor_info": {
+    "actor_id": "F",
+    "actor_age": "adult1(청소년청년)",
+    "actor_sex": "m"
+  },
+  "sensordata": {
+    "fall_start_frame": 352,
+    "fall_end_frame": 412
+  },
+  "scene_path": {
+    "scene_path": "낙상/Y/SY/00001_H_A_SY_C2"
+  }
+}
