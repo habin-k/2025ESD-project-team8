@@ -4,15 +4,16 @@ import numpy as np
 from pathlib import Path
 from tqdm import tqdm
 import json
-import warnings
+import torch
 
-# YOLOv8 pose 모델 로드
-model = YOLO("yolov8n-pose.pt")
+# YOLOv8 pose 모델 로드 (CUDA 적용)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = YOLO("yolov8n-pose.pt").to(device)
 
 # 입력 경로 (source: mp4, labeling: json)
-video_root = Path("./2025ESD-project-team8/Data_Extract/sample/source")
-labeling_root = Path("./2025ESD-project-team8/Data_Extract/sample/labeling")
-output_root = Path("./2025ESD-project-team8/Data_Extract/pose_tensor_npz")
+video_root = Path("/content/drive/MyDrive/Dataset_simplified/source")
+labeling_root = Path("/content/drive/MyDrive/Dataset_simplified/labeling")
+output_root = Path("/content/pose_tensor_npz")
 
 # 영상 파일 순회
 for video_path in tqdm(video_root.rglob("*.mp4")):
@@ -44,7 +45,11 @@ for video_path in tqdm(video_root.rglob("*.mp4")):
             pose = np.zeros((17, 2))
         else:
             try:
-                results = model.predict(source=frame, save=False, verbose=False)
+                # 프레임을 CUDA로 변환
+                frame_gpu = torch.from_numpy(frame).permute(2, 0, 1).unsqueeze(0).float().to(device)
+
+                # YOLOv8 모델 추론 (GPU에서 실행)
+                results = model.predict(source=frame_gpu, save=False, verbose=False)
                 keypoints = results[0].keypoints
 
                 if keypoints is None or not hasattr(keypoints, "xyn") or len(keypoints.xyn) == 0:
