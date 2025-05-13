@@ -10,6 +10,10 @@ import json
 import random
 from tqdm.notebook import tqdm  # Colab 환경에서 tqdm 사용
 
+# ✅ CUDA 설정
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"✅ Using device: {device}")
+
 # 1. 모든 Training 폴더 내 .npz 파일 불러오기 (재귀 탐색)
 def load_npz_in_training_folders(root_dir):
     sequences, labels, lengths = [], [], []
@@ -46,8 +50,8 @@ def load_npz_in_training_folders(root_dir):
     return sequences, labels, lengths
 
 # 2. 경로 설정
-fall_dir = "/content/drive/MyDrive/pose_tensor_npz_test/Y/Training"
-normal_dir = "/content/drive/MyDrive/pose_tensor_npz_test/N/Training"
+fall_dir = "/content/drive/MyDrive/pose_tensor_npz/Y/Training"
+normal_dir = "/content/drive/MyDrive/pose_tensor_npz/N/Training"
 
 fall_seqs, fall_labs, fall_lens = load_npz_in_training_folders(fall_dir)
 normal_seqs, normal_labs, normal_lens = load_npz_in_training_folders(normal_dir)
@@ -82,82 +86,68 @@ def collate_fn(batch):
 
 # 6. DataLoader 준비
 dataset = FallDataset(sequences, labels, lengths)
-loader = DataLoader(dataset, batch_size=8, shuffle=True, collate_fn=collate_fn)
+loader = DataLoader(dataset, batch_size=16, shuffle=True, collate_fn=collate_fn)
 
-# 7. LSTM 모델 정의
+# 7. LSTM 모델 정의 (프레임별 예측)
 class PackedLSTMClassifier(nn.Module):
-    def __init__(self, input_size=34, hidden_size=64):
+    def __init__(self, input_size=34, hidden_size=128):
         super().__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
-        self.fc = nn.Linear(hidden_size, 1)
-        self.sigmoid = nn.Sigmoid()
+        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True).to(device)
+        self.fc = nn.Linear(hidden_size, 1).to(device)
+        self.sigmoid = nn.Sigmoid().to(device)
 
     def forward(self, x, lengths):
-        packed = pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
+        packed = pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_output, (hn, _) = self.lstm(packed)
-        out = self.fc(hn[-1])
-        return self.sigmoid(out).squeeze()
+        unpacked_output, _ = torch.nn.utils.rnn.pad_packed_sequence(packed_output, batch_first=True)
+        
+        # 각 프레임마다 예측
+        out = self.sigmoid(self.fc(unpacked_output))  # (Batch, Sequence Length, 1)
+        return out.squeeze(-1)  # (Batch, Sequence Length)
 
 # 모델 초기화
-model = PackedLSTMClassifier().cuda()
+model = PackedLSTMClassifier().to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 loss_fn = nn.BCELoss()
 loss_history = []
 
-# 저장 경로 설정
-save_dir = "/content/drive/MyDrive/pose_tensor_npz_test/"
-best_model_path = os.path.join(save_dir, "best_lstm_model.pth")
-epoch_model_path = lambda e: os.path.join(save_dir, f"lstm_model_epoch_{e}.pth")
-
-best_f1 = 0  # 최고 성능 기록 변수
-
-# 8. 학습 루프 (tqdm 진행률 표시)
+# 8. 학습 루프 (프레임별 예측)
 for epoch in range(10):
     all_preds, all_labels = [], []
     model.train()
     
     with tqdm(loader, desc=f"🔧 Training Epoch {epoch+1}", leave=False) as pbar:
         for x, y, lengths in pbar:
-            x, y = x.cuda(), y.cuda()
-            pred = model(x, lengths)
+            x, y = x.to(device), y.to(device)
+            pred = model(x, lengths)  # (Batch, Sequence Length)
+            
+            # 손실 계산 (프레임별 Binary Cross Entropy)
             loss = loss_fn(pred, y)
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
             loss_history.append(loss.item())
 
-            all_preds += (pred > 0.5).int().tolist()
-            all_labels += y.int().tolist()
-            
+            all_preds += (pred > 0.5).int().flatten().tolist()
+            all_labels += y.int().flatten().tolist()
             pbar.set_postfix({"Loss": loss.item()})
 
-    # 정확도와 F1 점수 계산
+    # 정확도와 F1 점수 계산 (프레임 단위)
     acc = accuracy_score(all_labels, all_preds)
     f1 = f1_score(all_labels, all_preds)
     print(f"✅ Epoch {epoch+1} | Loss: {loss.item():.4f} | Acc: {acc:.4f} | F1: {f1:.4f}")
-    
-    # 모델 저장
-    torch.save(model.state_dict(), epoch_model_path(epoch + 1))
-    if f1 > best_f1:
-        best_f1 = f1
-        torch.save(model.state_dict(), best_model_path)
 
-# 학습 결과 저장
-results_save_path = os.path.join(save_dir, "training_results.json")
+# 9. 학습 결과 저장
+save_dir = "/content/drive/MyDrive/lstm_training_results"
+torch.save(model.state_dict(), os.path.join(save_dir, "best_lstm_model.pth"))
+
 results = {
     "loss_history": loss_history,
-    "best_f1_score": best_f1
+    "final_accuracy": acc,
+    "final_f1_score": f1
 }
 
-with open(results_save_path, "w") as f:
+with open(os.path.join(save_dir, "training_results.json"), "w") as f:
     json.dump(results, f)
 
-print(f"✅ 학습 결과 저장 완료: {results_save_path}")
-
-# 손실 시각화
-plt.plot(loss_history)
-plt.title("Training Loss (Frame-based Fall Detection)")
-plt.xlabel("Step")
-plt.ylabel("Loss")
-plt.grid(True)
-plt.show()
+print(f"✅ 학습 결과 저장 완료.")
