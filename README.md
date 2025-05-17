@@ -25,6 +25,7 @@
 - 소프트웨어: Python, YOLOv8-pose, PyTorch, LSTM, 기타 필요 라이브러리
 - 실시간 영상 스트리밍 및 경고/알림 시스템
 
+---
 
 ### Weekly Schedule
 
@@ -39,6 +40,17 @@
 | **Week 14** | 2025-06-10 | 최적화 및 데모 준비 | 해상도 조정, 추론 주기 설정, 사전 시연 테스트 |
 | **Week 15** | 2025-06-17 | 최종 발표 | 데모 준비, 최종 시스템 통합 |
 
+---
+
+### Changelog
+[25/04/22] Initialize repo
+[25/04/27] 1st progress report submit
+[25/05/07] 2차 발표(?)
+[25/05/18] 2nd progress report submit
+
+
+### DATASET
+- 한국지능정보사회진흥원 산하 AI Hub에서 제공하는 낙상사고 위험동작 영상-센서 쌍 데이터(https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&dataSetSn=71641) 활용
 
 
 ### 참고 논문 및 관련 연구
