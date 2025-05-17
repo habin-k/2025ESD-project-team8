@@ -6,12 +6,9 @@ This directory contains LSTM model definitions code and trained model checkpoint
 주차별 개선되는 LSTM 모델 정의와 학습 코드를 포함하는 하위 폴더. 
 
 ### Contents
-- **lstm_train.py**: LSTM model Training script
-- **lstm_test.py**: test for LSTM trained model
+- **lstm_train.py**: LSTM model Training script | LSTM 모델 학습 스크립트
+- **lstm_test.py**: test for LSTM trained model | LSTM 학습 모델 테스트 코드
 - **precision.py**: draw P-R curve, and find the best threshold value
-
-- **lstm_train.py**: LSTM 모델 학습 스크립트
-- **lstm_test.py**: LSTM 학습 모델 테스트 코드
 
 ### 🔗 Related Data (관련 데이터)
 - **Data_Extract/processed/**: Processed training and validation data
