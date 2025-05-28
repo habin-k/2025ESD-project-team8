@@ -17,7 +17,7 @@ skeleton = [
 ]
 
 # npz 파일 로드
-npz_file = Path("./00001_H_A_SY_C1.npz")
+npz_file = Path("./00015_H_A_SY_C2.npz")
 data = np.load(npz_file)
 pose_data = data['pose']
 label_data = data['label']
@@ -43,7 +43,7 @@ def update(frame):
             ax.plot([pose_frame[i, 0], pose_frame[j, 0]], [pose_frame[i, 1], pose_frame[j, 1]], 'green' if label_data[frame] == 1 else 'blue')
 
 ani = animation.FuncAnimation(fig, update, frames=len(pose_data), repeat=True, interval=500)
-gif_path = "./pose_animation.gif"
+gif_path = "./pose_animation_new_new.gif"
 ani.save(gif_path, writer='pillow')
 
 print(f"GIF saved at {gif_path}")

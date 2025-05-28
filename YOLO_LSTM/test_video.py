@@ -29,10 +29,14 @@ lstm_model.load_state_dict(torch.load('best_model.pth', map_location='cpu'))
 lstm_model.eval()
 
 # --------- 2. 설정 ---------
-video_path = "00015_H_A_SY_C2.mp4"
+video_path = "00003_H_A_FY_C1.mp4"
 cap = cv2.VideoCapture(video_path)
 fps = cap.get(cv2.CAP_PROP_FPS)
 interval_frame = int(fps * 0.5)
+
+# 해상도 추출 (정규화에 사용)
+frame_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
 queue = deque(maxlen=20)
 THRESHOLD = 0.75
@@ -42,6 +46,12 @@ frame_count = 0
 fall_probs = []
 fall_flags = []
 fall_frame_indices = []
+
+def normalize_keypoints(kpts_tensor, width, height):
+    kpts_np = kpts_tensor.cpu().numpy()  # (17, 2)
+    kpts_np[:, 0] /= width
+    kpts_np[:, 1] /= height
+    return torch.tensor(kpts_np.flatten(), dtype=torch.float32)
 
 # --------- 3. 큐 초기화: 첫 skeleton이 나올 때까지 대기 ---------
 print("[INFO] Waiting for first valid skeleton to initialize queue...")
@@ -58,9 +68,9 @@ while cap.isOpened():
     if keypoints is not None and len(keypoints) > 0:
         try:
             kpts = keypoints.xy[0]
-            flat = kpts.cpu().numpy().flatten()
-            if flat.shape[0] == 34:
-                first_vector = torch.tensor(flat, dtype=torch.float32)
+            if kpts.shape == (17, 2):
+                norm_vector = normalize_keypoints(kpts, frame_width, frame_height)
+                first_vector = norm_vector
                 for _ in range(20):
                     queue.append(first_vector)
                 print("[INFO] Queue initialized with first valid skeleton.")
@@ -81,13 +91,13 @@ while cap.isOpened():
         if keypoints is not None and len(keypoints) > 0:
             try:
                 kpts = keypoints.xy[0]
-                flat = kpts.cpu().numpy().flatten()
-                if flat.shape[0] == 34:
-                    queue.append(torch.tensor(flat, dtype=torch.float32))
+                if kpts.shape == (17, 2):
+                    norm_vector = normalize_keypoints(kpts, frame_width, frame_height)
+                    queue.append(norm_vector)
             except:
                 continue
         else:
-            queue.append(first_vector)  # 여전히 사람 없으면 이전 skeleton 유지
+            queue.append(first_vector)  # 사람 없으면 이전 pose 복사
 
         if len(queue) == 20:
             x_seq = torch.stack(list(queue)).unsqueeze(0)
