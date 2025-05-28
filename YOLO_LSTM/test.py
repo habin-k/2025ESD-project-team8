@@ -1,6 +1,7 @@
 import cv2
 import torch
 import numpy as np
+import time
 from collections import deque
 from ultralytics import YOLO
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
@@ -32,9 +33,15 @@ queue = deque(maxlen=20)
 THRESHOLD = 0.75
 
 # --------- 4. 웹캠 열기 ---------
-cap = cv2.VideoCapture(0)  # or use a video file path
+cap = cv2.VideoCapture(0)
+
+# --------- 5. FPS 설정 ---------
+TARGET_FPS = 2
+TARGET_FRAME_TIME = 1.0 / TARGET_FPS
 
 while cap.isOpened():
+    start_time = time.time()
+
     ret, frame = cap.read()
     if not ret:
         break
@@ -43,31 +50,51 @@ while cap.isOpened():
     results = yolo_model(frame)
     keypoints = results[0].keypoints
 
-    if keypoints is not None and len(keypoints) > 0:
-        # 첫 번째 사람만 추적
-        kpts = keypoints.xy[0]  # shape: (17, 2)
-        flat = kpts.cpu().numpy().flatten()  # (34,)
+    # --------- 예외처리: keypoints가 None이거나 빈 경우 ---------
+    if keypoints is None or len(keypoints) == 0:
+        cv2.putText(frame, "No person detected", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (100, 100, 100), 2)
+    else:
+        try:
+            kpts = keypoints.xy[0]  # (17, 2)
+            flat = kpts.cpu().numpy().flatten()  # (34,)
+            if flat.shape[0] == 34:
+                queue.append(torch.tensor(flat, dtype=torch.float32))
+        except Exception as e:
+            print(f"[Warning] Failed to extract keypoints: {e}")
 
-        queue.append(torch.tensor(flat, dtype=torch.float32))
-
-        # Queue가 20개 모였을 때 추론
+        # 추론 조건 만족 시 실행
         if len(queue) == 20:
-            x_seq = torch.stack(list(queue)).unsqueeze(0)  # (1, 20, 34)
-            lengths = torch.tensor([20])
-            with torch.no_grad():
-                logits = lstm_model(x_seq, lengths)
-                probs = torch.sigmoid(logits)
+            try:
+                x_seq = torch.stack(list(queue)).unsqueeze(0)  # (1, 20, 34)
+                lengths = torch.tensor([20])
+                with torch.no_grad():
+                    logits = lstm_model(x_seq, lengths)
+                    probs = torch.sigmoid(logits)
 
-                # 현재 프레임 낙상 여부
-                fall_prob = probs[0, -1].item()
-                is_fall = fall_prob > THRESHOLD
+                    fall_prob = probs[0, -1].item()
+                    is_fall = fall_prob > THRESHOLD
 
-                # 화면에 표시
-                text = f"Fall: {'YES' if is_fall else 'NO'} ({fall_prob:.2f})"
-                cv2.putText(frame, text, (10, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255) if is_fall else (0, 255, 0), 2)
+                    text = f"Fall: {'YES' if is_fall else 'NO'} ({fall_prob:.2f})"
+                    cv2.putText(frame, text, (10, 30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                (0, 0, 255) if is_fall else (0, 255, 0), 2)
+            except Exception as e:
+                print(f"[Error] Inference failed: {e}")
+
+    # --------- FPS 계산 및 표시 ---------
+    fps = 1 / (time.time() - start_time + 1e-8)
+    cv2.putText(frame, f"FPS: {fps:.2f}", (10, 70),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
 
     cv2.imshow("Fall Detection", frame)
+
+    # --------- 2 FPS 고정 (0.5초 간격) ---------
+    elapsed = time.time() - start_time
+    time_to_sleep = TARGET_FRAME_TIME - elapsed
+    if time_to_sleep > 0:
+        time.sleep(time_to_sleep)
+
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
