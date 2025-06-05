@@ -27,7 +27,7 @@ lstm_model.load_state_dict(torch.load("best_model.pth", map_location='cpu'))
 lstm_model.eval()
 
 core = Core()
-model_ov = core.read_model("yolov8n-pose_openvino/yolov8n-pose.xml")
+model_ov = core.read_model("yolov8n-pose_openvino_320/yolov8n-pose.xml")
 compiled_model = core.compile_model(model_ov, device_name="CPU")
 input_layer = compiled_model.input(0)
 output_layer = compiled_model.output(0)
@@ -66,7 +66,7 @@ try:
         fps = 1.0 / (curr_time - prev_time) if prev_time else 0.0
         prev_time = curr_time
 
-        input_img = cv2.resize(frame, (640, 640))
+        input_img = cv2.resize(frame, (320, 320))
         input_tensor = input_img.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32) / 255.0
 
         outputs = compiled_model([input_tensor])
@@ -88,7 +88,7 @@ try:
             kpt_raw = best[5:]
             kpts = kpt_raw.reshape(-1, 3)[:, :2]
             confs = kpt_raw.reshape(-1, 3)[:, 2]
-            norm_vector = normalize_keypoints(kpts, confs, 640, 640)
+            norm_vector = normalize_keypoints(kpts, confs, 320, 320)
         else:
             norm_vector = zero_vector
 

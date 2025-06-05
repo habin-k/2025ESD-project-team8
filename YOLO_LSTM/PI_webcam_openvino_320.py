@@ -29,7 +29,7 @@ lstm_model.eval()
 
 # --------- OpenVINO 모델 로딩 ---------
 core = Core()
-model_ov = core.read_model("yolo11n-pose_openvino_model/yolo11n-pose.xml")
+model_ov = core.read_model("yolov8n-pose_openvino_320/yolov8n-pose.xml")
 compiled_model = core.compile_model(model_ov, device_name="CPU")
 input_layer = compiled_model.input(0)
 output_layer = compiled_model.output(0)
@@ -45,7 +45,7 @@ skeleton = [
 # --------- 웹캠 설정 ---------
 cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
 if not cap.isOpened():
@@ -57,6 +57,7 @@ queue = deque(maxlen=20)
 queue_frame_indices = deque(maxlen=20)
 zero_vector = torch.zeros(51, dtype=torch.float32)
 frame_index = 0
+prev_time = time.time()
 
 def normalize_keypoints(kpts, conf, width, height):
     kpts_np = np.copy(kpts)
@@ -80,9 +81,6 @@ ax.legend()
 
 print("[INFO] 실시간 추론 시작 ('q' 키로 종료)")
 
-prev_time = None
-prev_process_time = 0  # FPS 2를 위한 기준 시간
-
 try:
     while True:
         ret, frame = cap.read()
@@ -91,15 +89,10 @@ try:
             continue
 
         curr_time = time.time()
-        #fps = 1.0 / (curr_time - prev_time) if prev_time else 0.0
+        fps = 1.0 / (curr_time - prev_time)
         prev_time = curr_time
 
-        # FPS 2 맞춤: 0.5초 간격으로 처리
-        if curr_time - prev_process_time < 0.5:
-            continue
-        prev_process_time = curr_time
-
-        input_img = cv2.resize(frame, (640, 640))
+        input_img = cv2.resize(frame, (320, 320))
         input_tensor = input_img.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32) / 255.0
 
         outputs = compiled_model([input_tensor])
@@ -122,11 +115,16 @@ try:
             kpts = kpt_raw.reshape(-1, 3)[:, :2]
             confs = kpt_raw.reshape(-1, 3)[:, 2]
 
+            scale_x = frame.shape[1] / 320
+            scale_y = frame.shape[0] / 320
+            kpts[:, 0] *= scale_x
+            kpts[:, 1] *= scale_y
+
             cx, cy, w, h = best[0:4]
-            x1 = int(cx - w / 2)
-            y1 = int(cy - h / 2)
-            x2 = int(cx + w / 2)
-            y2 = int(cy + h / 2)
+            x1 = int((cx - w / 2) * scale_x)
+            y1 = int((cy - h / 2) * scale_y)
+            x2 = int((cx + w / 2) * scale_x)
+            y2 = int((cy + h / 2) * scale_y)
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
             cv2.putText(frame, f"person {max_conf:.2f}", (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
@@ -135,14 +133,13 @@ try:
                 if c > 0.2:
                     x, y = int(pt[0]), int(pt[1])
                     cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)
-
             for a, b in skeleton:
                 if confs[a] > 0.2 and confs[b] > 0.2:
                     pt1 = tuple(kpts[a].astype(int))
                     pt2 = tuple(kpts[b].astype(int))
                     cv2.line(frame, pt1, pt2, (255, 255, 0), 2)
 
-            norm_vector = normalize_keypoints(kpts, confs, 640, 640)
+            norm_vector = normalize_keypoints(kpts, confs, frame.shape[1], frame.shape[0])
         else:
             norm_vector = zero_vector
 
@@ -178,8 +175,8 @@ try:
                 fig.canvas.flush_events()
 
         # --------- OpenCV 표시 ---------
-        #cv2.putText(frame, f"FPS: {fps:.2f}", (10, 30),
-        #            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        cv2.putText(frame, f"FPS: {fps:.2f}", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
         cv2.putText(frame, f"Fall Prob: {fall_prob:.2f}", (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
         cv2.putText(frame, f"Label: {fall_label}", (10, 90),
