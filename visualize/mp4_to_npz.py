@@ -5,17 +5,18 @@ from ultralytics import YOLO
 from pathlib import Path
 
 # -------- 설정 --------
-video_path = "./00015_H_A_SY_C2.mp4"
-save_path = "./00015_H_A_SY_C2.npz"
-model_path = "yolov8n-pose.pt"
-target_frame_count = 20
-interval_seconds = 0.5
+video_path = "./02148_H_A_BY_C4.mp4"
+save_path = "./02148_H_A_BY_C4.npz"
+model_path = "yolo11n-pose.pt"
+target_frame_count = 50
+interval_seconds = 0.2
 
 # -------- 모델 불러오기 --------
 yolo_model = YOLO(model_path)
 
 # -------- 비디오 열기 --------
 cap = cv2.VideoCapture(video_path)
+
 if not cap.isOpened():
     raise RuntimeError(f"Cannot open video: {video_path}")
 

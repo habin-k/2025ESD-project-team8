@@ -7,6 +7,10 @@ from openvino.runtime import Core
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 import matplotlib.pyplot as plt
 
+# --------- FPS 제한 설정 ---------
+target_fps = 5
+frame_interval = 1.0 / target_fps
+
 # --------- LSTM 모델 정의 ---------
 class FrameLSTM(torch.nn.Module):
     def __init__(self, input_size=51, hidden_size=64):
@@ -22,19 +26,30 @@ class FrameLSTM(torch.nn.Module):
         out_unpad, _ = pad_packed_sequence(out_packed, batch_first=True)
         return self.fc(out_unpad).squeeze(-1)
 
-# --------- LSTM 모델 로딩 ---------
+# --------- Letterbox 함수 ---------
+def letterbox_image(image, size=(320, 320)):
+    h, w = image.shape[:2]
+    scale = min(size[0] / w, size[1] / h)
+    nw, nh = int(w * scale), int(h * scale)
+    image_resized = cv2.resize(image, (nw, nh), interpolation=cv2.INTER_LINEAR)
+    new_image = np.full((size[1], size[0], 3), 128, dtype=np.uint8)
+    top = (size[1] - nh) // 2
+    left = (size[0] - nw) // 2
+    new_image[top:top+nh, left:left+nw] = image_resized
+    return new_image, scale, left, top
+
+# --------- 모델 로딩 ---------
 lstm_model = FrameLSTM()
-lstm_model.load_state_dict(torch.load("best_model.pth", map_location='cpu'))
+lstm_model.load_state_dict(torch.load("best_model_320.pth", map_location='cpu'))
 lstm_model.eval()
 
-# --------- OpenVINO 모델 로딩 ---------
 core = Core()
-model_ov = core.read_model("yolov8n-pose_openvino_320/yolov8n-pose.xml")
+model_ov = core.read_model("yolo11n-pose_openvino_320/yolo11n-pose.xml")
 compiled_model = core.compile_model(model_ov, device_name="CPU")
 input_layer = compiled_model.input(0)
 output_layer = compiled_model.output(0)
 
-# --------- COCO Skeleton 연결 정보 ---------
+# --------- COCO Skeleton ---------
 skeleton = [
     (0, 1), (0, 2), (1, 3), (2, 4),
     (5, 6), (5, 7), (7, 9), (6, 8), (8, 10),
@@ -42,10 +57,10 @@ skeleton = [
     (12, 14), (14, 16), (11, 12)
 ]
 
-# --------- 웹캠 설정 ---------
+# --------- 캡처 설정 ---------
 cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
 if not cap.isOpened():
@@ -79,10 +94,12 @@ ax.set_ylabel("Probability")
 ax.set_title("Live LSTM Prediction")
 ax.legend()
 
-print("[INFO] 실시간 추론 시작 ('q' 키로 종료)")
+print(f"[INFO] 실시간 추론 시작 ('q' 키로 종료, {target_fps} FPS 제한)")
 
 try:
     while True:
+        loop_start_time = time.time()
+
         ret, frame = cap.read()
         if not ret:
             print("[WARN] 프레임 읽기 실패")
@@ -92,9 +109,11 @@ try:
         fps = 1.0 / (curr_time - prev_time)
         prev_time = curr_time
 
-        input_img = cv2.resize(frame, (320, 320))
+        # Letterbox 전처리
+        input_img, scale, pad_x, pad_y = letterbox_image(frame, size=(320, 320))
         input_tensor = input_img.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32) / 255.0
 
+        # YOLO 추론
         outputs = compiled_model([input_tensor])
         output_tensor = outputs[output_layer]
         results = np.squeeze(output_tensor).transpose(1, 0)
@@ -115,16 +134,14 @@ try:
             kpts = kpt_raw.reshape(-1, 3)[:, :2]
             confs = kpt_raw.reshape(-1, 3)[:, 2]
 
-            scale_x = frame.shape[1] / 320
-            scale_y = frame.shape[0] / 320
-            kpts[:, 0] *= scale_x
-            kpts[:, 1] *= scale_y
+            kpts[:, 0] = (kpts[:, 0] - pad_x) / scale
+            kpts[:, 1] = (kpts[:, 1] - pad_y) / scale
 
             cx, cy, w, h = best[0:4]
-            x1 = int((cx - w / 2) * scale_x)
-            y1 = int((cy - h / 2) * scale_y)
-            x2 = int((cx + w / 2) * scale_x)
-            y2 = int((cy + h / 2) * scale_y)
+            x1 = int((cx - w / 2) * 320)
+            y1 = int((cy - h / 2) * 320)
+            x2 = int((cx + w / 2) * 320)
+            y2 = int((cy + h / 2) * 320)
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
             cv2.putText(frame, f"person {max_conf:.2f}", (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
@@ -174,9 +191,8 @@ try:
                 fig.canvas.draw()
                 fig.canvas.flush_events()
 
-        # --------- OpenCV 표시 ---------
         cv2.putText(frame, f"FPS: {fps:.2f}", (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         cv2.putText(frame, f"Fall Prob: {fall_prob:.2f}", (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
         cv2.putText(frame, f"Label: {fall_label}", (10, 90),
@@ -187,6 +203,11 @@ try:
         if cv2.waitKey(1) & 0xFF == ord('q'):
             print("[INFO] 'q' 입력으로 종료합니다.")
             break
+
+        # --------- FPS 제한 ---------
+        inference_time = time.time() - loop_start_time
+        if inference_time < frame_interval:
+            time.sleep(frame_interval - inference_time)
 
 except KeyboardInterrupt:
     print("\n[INFO] Ctrl+C 입력으로 종료합니다.")

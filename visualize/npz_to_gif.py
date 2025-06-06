@@ -17,10 +17,15 @@ skeleton = [
 ]
 
 # npz 파일 로드
-npz_file = Path("./02160_H_A_BY_C5.npz")
+npz_file = Path("./02342_H_A_BY_C4.npz")
 data = np.load(npz_file)
 pose_data = data['pose']
 label_data = data['label']
+
+# ✅ 프레임 간 간격 계산 (총 10초)
+total_duration_ms = 10_000  # 전체 재생 시간 (10초)
+frame_count = len(pose_data)
+interval_ms = total_duration_ms / frame_count  # 각 프레임 간 시간
 
 fig, ax = plt.subplots()
 ax.set_xlim(0, 1)
@@ -40,10 +45,11 @@ def update(frame):
 
     for i, j in skeleton:
         if all(pose_frame[i] > 0) and all(pose_frame[j] > 0):
-            ax.plot([pose_frame[i, 0], pose_frame[j, 0]], [pose_frame[i, 1], pose_frame[j, 1]], 'green' if label_data[frame] == 1 else 'blue')
+            ax.plot([pose_frame[i, 0], pose_frame[j, 0]], [pose_frame[i, 1], pose_frame[j, 1]],
+                    'green' if label_data[frame] == 1 else 'blue')
 
-ani = animation.FuncAnimation(fig, update, frames=len(pose_data), repeat=True, interval=500)
-gif_path = "./02160_H_A_BY_C5.gif"
+ani = animation.FuncAnimation(fig, update, frames=frame_count, repeat=True, interval=interval_ms)
+gif_path = "./02342_H_A_BY_C4.gif"
 ani.save(gif_path, writer='pillow')
 
-print(f"GIF saved at {gif_path}")
+print(f"✅ GIF saved at {gif_path}, duration: 10 seconds, interval per frame: {interval_ms:.1f} ms")
