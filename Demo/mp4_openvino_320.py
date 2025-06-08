@@ -7,7 +7,10 @@ from openvino.runtime import Core
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 import matplotlib.pyplot as plt
 
-# --------- FPS 제한 설정 ---------
+# --------- 입력 비디오 경로 ---------
+VIDEO_PATH = "00015_H_A_SY_C2.mp4"  # 원하는 mp4 파일 경로 입력
+
+# --------- FPS 제한 ---------
 target_fps = 5
 frame_interval = 1.0 / target_fps
 
@@ -40,7 +43,7 @@ def letterbox_image(image, size=(320, 320)):
 
 # --------- 모델 로딩 ---------
 lstm_model = FrameLSTM()
-lstm_model.load_state_dict(torch.load("best_model_320.pth", map_location='cpu'))
+lstm_model.load_state_dict(torch.load("best_model.pth", map_location='cpu'))
 lstm_model.eval()
 
 core = Core()
@@ -49,7 +52,7 @@ compiled_model = core.compile_model(model_ov, device_name="CPU")
 input_layer = compiled_model.input(0)
 output_layer = compiled_model.output(0)
 
-# --------- COCO Skeleton ---------
+# --------- COCO Skeleton 연결 정보 ---------
 skeleton = [
     (0, 1), (0, 2), (1, 3), (2, 4),
     (5, 6), (5, 7), (7, 9), (6, 8), (8, 10),
@@ -57,17 +60,13 @@ skeleton = [
     (12, 14), (14, 16), (11, 12)
 ]
 
-# --------- 캡처 설정 ---------
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
-cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
+# --------- 비디오 캡처 ---------
+cap = cv2.VideoCapture(VIDEO_PATH)
 if not cap.isOpened():
-    raise RuntimeError("❌ 웹캠을 열 수 없습니다.")
+    raise RuntimeError(f"❌ 비디오를 열 수 없습니다: {VIDEO_PATH}")
 
 # --------- 초기화 ---------
-THRESHOLD = 0.85
+THRESHOLD = 0.8
 queue = deque(maxlen=20)
 queue_frame_indices = deque(maxlen=20)
 zero_vector = torch.zeros(51, dtype=torch.float32)
@@ -94,7 +93,7 @@ ax.set_ylabel("Probability")
 ax.set_title("Live LSTM Prediction")
 ax.legend()
 
-print(f"[INFO] 실시간 추론 시작 ('q' 키로 종료, {target_fps} FPS 제한)")
+print(f"[INFO] 영상 처리 시작 ('q' 키로 종료, {target_fps} FPS 제한)")
 
 try:
     while True:
@@ -102,18 +101,16 @@ try:
 
         ret, frame = cap.read()
         if not ret:
-            print("[WARN] 프레임 읽기 실패")
-            continue
+            print("[INFO] 영상 종료")
+            break
 
-        curr_time = time.time()
-        fps = 1.0 / (curr_time - prev_time)
-        prev_time = curr_time
+        frame = cv2.resize(frame, (320, 240), interpolation=cv2.INTER_LINEAR)
 
-        # Letterbox 전처리
+        # Letterbox 처리 (320 x 320으로 입력 맞춤)
         input_img, scale, pad_x, pad_y = letterbox_image(frame, size=(320, 320))
         input_tensor = input_img.transpose(2, 0, 1)[np.newaxis, ...].astype(np.float32) / 255.0
 
-        # YOLO 추론
+        # 추론 수행
         outputs = compiled_model([input_tensor])
         output_tensor = outputs[output_layer]
         results = np.squeeze(output_tensor).transpose(1, 0)
@@ -191,20 +188,17 @@ try:
                 fig.canvas.draw()
                 fig.canvas.flush_events()
 
-        cv2.putText(frame, f"FPS: {fps:.2f}", (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        cv2.putText(frame, f"Fall Prob: {fall_prob:.2f}", (10, 60),
+        cv2.putText(frame, f"Fall Prob: {fall_prob:.2f}", (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
-        cv2.putText(frame, f"Label: {fall_label}", (10, 90),
+        cv2.putText(frame, f"Label: {fall_label}", (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7,
                     (0, 0, 255) if fall_label == "Fall" else (0, 255, 0), 2)
 
-        cv2.imshow("Webcam with Skeleton + Fall Detection", frame)
+        cv2.imshow("Fall Detection", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            print("[INFO] 'q' 입력으로 종료합니다.")
+            print("[INFO] 'q' 키 입력으로 종료합니다.")
             break
 
-        # --------- FPS 제한 ---------
         inference_time = time.time() - loop_start_time
         if inference_time < frame_interval:
             time.sleep(frame_interval - inference_time)
