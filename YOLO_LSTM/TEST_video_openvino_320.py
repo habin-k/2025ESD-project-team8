@@ -8,7 +8,7 @@ from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 import matplotlib.pyplot as plt
 
 # --------- 입력 비디오 경로 ---------
-VIDEO_PATH = "00015_H_A_SY_C2.mp4"  # 원하는 mp4 파일 경로 입력
+VIDEO_PATH = "demo_video.mp4"  # 원하는 mp4 파일 경로 입력
 
 # --------- FPS 제한 ---------
 target_fps = 5
@@ -43,7 +43,7 @@ def letterbox_image(image, size=(320, 320)):
 
 # --------- 모델 로딩 ---------
 lstm_model = FrameLSTM()
-lstm_model.load_state_dict(torch.load("best_model.pth", map_location='cpu'))
+lstm_model.load_state_dict(torch.load("best_model_320.pth", map_location='cpu'))
 lstm_model.eval()
 
 core = Core()
