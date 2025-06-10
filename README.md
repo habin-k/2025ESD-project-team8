@@ -30,12 +30,12 @@
 | **Week** | **Task** | **Details** |
 |----------|----------|--------------|
 | **Week 8** | 데이터셋 확보 | AIHub 데이터셋 확보, 샘플 데이터 전처리 |
-| **Week 9** | LSTM 기본 모델 학습 | LSTM 코드 작성, 샘플 데이터 학습 |
+| **Week 9** | LSTM 학습 | LSTM 코드 작성, 샘플 데이터 학습 |
 | **Week 10** | 데이터셋 전처리 | 전체 데이터셋에서 시계열 데이터 추출 |
-| **Week 11** | LSTM 모델 최적화 | P-R Curve 활용, 모델 성능 개선 |
+| **Week 11** | LSTM 모델 최적화 | PR Curve 활용, 모델 성능 개선 |
 | **Week 12** | 모델 통합 | YOLO-pose + LSTM 통합, 실시간 처리 파이프라인 구축 |
 | **Week 13** | 라즈베리파이 이식 | ONNX 변환, 라즈베리파이 추론 테스트 |
-| **Week 14** | 최적화 및 데모 준비 | 해상도 조정, 추론 주기 설정, 사전 시연 테스트 |
+| **Week 14** | 최적화 및 데모 준비 | 해상도 및 추론 주기(fps) 최적화, 사전 시연 테스트 |
 | **Week 15** | 최종 발표 | 데모 준비, 최종 시스템 통합 |
 
 ---
@@ -43,8 +43,9 @@
 ### Changelog
 - [25/04/22] Initialize repo
 - [25/04/27] 1st progress report submit
-- [25/05/07] 2차 발표(?)
+- [25/05/07] 2차 발표
 - [25/05/18] 2nd progress report submit
+- [25/06/10] Final commit before Demo
 
 
 ### DATASET
@@ -55,3 +56,18 @@
 
 
 
+
+## LSTM Models (LSTM 모델)
+
+### Description
+This directory contains LSTM model definitions code and trained model checkpoints. It is specifically designed for the fall detection system, leveraging temporal sequence data for accurate fall detection.
+
+주차별 개선되는 LSTM 모델 정의와 학습 코드를 포함하는 하위 폴더. 
+
+### Contents
+- **lstm_train.py**: LSTM model Training script | LSTM 모델 학습 스크립트
+- **lstm_test.py**: test for LSTM trained model | LSTM 학습 모델 테스트 코드
+- **precision.py**: draw P-R curve, and find the best threshold value
+
+### 🔗 Related Data (관련 데이터)
+- **Data_Extract/processed/**: Processed training and validation data
