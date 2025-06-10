@@ -51,11 +51,7 @@
 ### DATASET
 - 한국지능정보사회진흥원 산하 AI Hub에서 제공하는 낙상사고 위험동작 영상-센서 쌍 데이터(https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&dataSetSn=71641) 활용
 
-
-### 참고 논문 및 관련 연구
-
-
-
+---
 
 ## LSTM Models (LSTM 모델)
 
@@ -71,3 +67,16 @@ This directory contains LSTM model definitions code and trained model checkpoint
 
 ### 🔗 Related Data (관련 데이터)
 - **Data_Extract/processed/**: Processed training and validation data
+
+---
+
+### 참고 자료 및 관련 연구
+[https://docs.ultralytics.com/ko/guides/raspberry-pi/]
+[https://github.com/Akhileshramks/Human-Fall-Detection/tree/main]
+[http://www.ksie.ne.kr/journal/article.php?code=92380]
+[https://github.com/badalyaz/fall-detection]
+[https://m.riss.kr/search/detail/ssoSkipDetailView.do?p_mat_type=1a0202e37d52c72d&control_no=d02005132a23c8e06aae8a972f9116fb]
+[https://universe.roboflow.com/roboflow-universe-projects/fall-detection-ca3o8]
+[https://blog.roboflow.com/detect-falls-with-computer-vision/]
+[https://github.com/seungsimdang/Proposal-of-an-Improved-Fall-Detection-Using-GRU]
+[https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART003039223]
